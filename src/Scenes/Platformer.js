@@ -31,19 +31,19 @@ class Platformer extends Phaser.Scene {
             collides: true
         });
 
+        /* MAP INIT */
         // Find coins in the "Objects" layer in Phaser
         // Look for them by finding objects with the name "coin"
         // Assign the coin texture from the tilemap_sheet sprite sheet
         // Phaser docs:
         // https://newdocs.phaser.io/docs/3.80.0/focus/Phaser.Tilemaps.Tilemap-createFromObjects
-
         this.coins = this.map.createFromObjects("Objects", {
             name: "coin",
             key: "tilemap_sheet",
             frame: 151
         });
-         // Since createFromObjects returns an array of regular Sprites, we need to convert 
-        // them into Arcade Physics sprites (STATIC_BODY, so they don't move) 
+        // Since createFromObjects returns an array of regular Sprites, we need to convert 
+        //      them into Arcade Physics sprites (STATIC_BODY, so they don't move) 
         this.physics.world.enable(this.coins, Phaser.Physics.Arcade.STATIC_BODY);  
         
         // EC2: COIN PARTICLE SYSTEM
@@ -54,12 +54,10 @@ class Platformer extends Phaser.Scene {
             scale: {start: 0.1, end: 0.05, ease: 'bounce.out'},
             lifespan: 100,
             stopAfter: 2
-            //alpha: {start: 0, end: 1}, 
         });
         my.vfx.pickup.stop();
-
         // EC3: ANIAMTE COINS
-        for(let i in this.coins){
+        for(let i in this.coins){ // play animation for evey coin in group
             this.coins[i].anims.play('rotate');
         }
 
@@ -70,8 +68,9 @@ class Platformer extends Phaser.Scene {
             frame: 157
         });
         this.physics.world.enable(this.spawnPoint, Phaser.Physics.Arcade.STATIC_BODY);  
-        //console.log(this.spawnPoint);
-        this.spawnPoint[0].setVisible(false);
+        for(let i in this.spawnPoint){ // make spawn point(s) invis
+            this.spawnPoint[i].setVisible(false);
+        }
 
         // EC1.B: MAKING A POWERUP
         this.powerUp = this.map.createFromObjects("Objects", {
@@ -81,6 +80,7 @@ class Platformer extends Phaser.Scene {
         });
         this.physics.world.enable(this.powerUp, Phaser.Physics.Arcade.STATIC_BODY);  
 
+        /* PLAYER AVATAR */
         // set up player avatar
         my.sprite.player = this.physics.add.sprite(
             this.spawnPoint[0].x, 
@@ -88,7 +88,19 @@ class Platformer extends Phaser.Scene {
             "platformer_characters", 
             "tile_0000.png");
         my.sprite.player.setCollideWorldBounds(true);
+        // movement vfx
+        my.vfx.walking = this.add.particles(0, 0, "kenny-particles", {
+            frame: ['smoke_03.png', 'smoke_09.png'],
+            random: true,
+            scale: {start: 0.03, end: 0.1},
+            maxAliveParticles: 8,
+            lifespan: 150,
+            gravityY: -200,
+            alpha: {start: 1, end: 0.1}, 
+        });
+        my.vfx.walking.stop();
 
+        /* COLLSION */
         // Enable collision handling
         this.physics.add.collider(my.sprite.player, this.groundLayer);
 
@@ -100,10 +112,12 @@ class Platformer extends Phaser.Scene {
             my.sprite.player, 
             this.coinGroup, 
             (obj1, obj2) => {
+                // EC2: COIN PARTICLE SYSTEM
                 my.vfx.pickup.x = obj2.x;
                 my.vfx.pickup.y = obj2.y;
                 my.vfx.pickup.start();
-                obj2.destroy(); // remove coin on overlap
+                // remove coin on overlap
+                obj2.destroy(); 
         });     
         
         this.powerUpGroup = this.add.group(this.powerUp);
@@ -117,10 +131,16 @@ class Platformer extends Phaser.Scene {
                 my.sprite.player.body.setVelocityY(this.JUMP_VELOCITY*2);
 
         });    
+        
+        /* CAMERA */
+        this.cameras.main.setBounds(0, 0, this.map.widthInPixels, this.map.heightInPixels);
+        this.cameras.main.startFollow(my.sprite.player, true, 0.25, 0.25); // (target, [,roundPixels][,lerpX][,lerpY])
+        this.cameras.main.setDeadzone(50, 50);
+        this.cameras.main.setZoom(this.SCALE);        
 
+        /* KEYS */
         // set up Phaser-provided cursor key input
         cursors = this.input.keyboard.createCursorKeys();
-
         this.rKey = this.input.keyboard.addKey('R');
 
         // debug key listener (assigned to D key)
@@ -128,31 +148,6 @@ class Platformer extends Phaser.Scene {
             this.physics.world.drawDebug = this.physics.world.drawDebug ? false : true
             this.physics.world.debugGraphic.clear()
         }, this);
-
-        // movement vfx
-
-        my.vfx.walking = this.add.particles(0, 0, "kenny-particles", {
-            frame: ['smoke_03.png', 'smoke_09.png'],
-            // TODO: Try: add 
-            random: true,
-            scale: {start: 0.03, end: 0.1},
-            // TODO: Try: 
-            maxAliveParticles: 8,
-            lifespan: 150,
-            // TODO: Try: 
-            gravityY: -200,
-            alpha: {start: 1, end: 0.1}, 
-        });
-
-        my.vfx.walking.stop();
-        
-        // CAMERA
-
-        this.cameras.main.setBounds(0, 0, this.map.widthInPixels, this.map.heightInPixels);
-        this.cameras.main.startFollow(my.sprite.player, true, 0.25, 0.25); // (target, [,roundPixels][,lerpX][,lerpY])
-        this.cameras.main.setDeadzone(50, 50);
-        this.cameras.main.setZoom(this.SCALE);        
-
     }
 
     update() {
@@ -160,10 +155,9 @@ class Platformer extends Phaser.Scene {
             my.sprite.player.setAccelerationX(-this.ACCELERATION);
             my.sprite.player.resetFlip();
             my.sprite.player.anims.play('walk', true);
-            // TODO: add particle following code here
+            
             my.vfx.walking.startFollow(my.sprite.player, my.sprite.player.displayWidth/2+5, my.sprite.player.displayHeight/2-5, false);
             my.vfx.walking.setParticleSpeed(this.PARTICLE_VELOCITY, 0);
-            // Only play smoke effect if touching the ground
             if (my.sprite.player.body.blocked.down) {
                 my.vfx.walking.start();
             }
@@ -173,10 +167,8 @@ class Platformer extends Phaser.Scene {
             my.sprite.player.setFlip(true, false);
             my.sprite.player.anims.play('walk', true);
             
-            // TODO: add particle following code here
             my.vfx.walking.startFollow(my.sprite.player, my.sprite.player.displayWidth/2-30, my.sprite.player.displayHeight/2-5, false);
             my.vfx.walking.setParticleSpeed(-this.PARTICLE_VELOCITY, 0);
-            // Only play smoke effect if touching the ground
             if (my.sprite.player.body.blocked.down) {
                 my.vfx.walking.start();
             }
@@ -185,7 +177,7 @@ class Platformer extends Phaser.Scene {
             my.sprite.player.setAccelerationX(0);
             my.sprite.player.setDragX(this.DRAG);
             my.sprite.player.anims.play('idle');
-            // TODO: have the vfx stop playing
+
             my.vfx.walking.stop();
         }
 
